@@ -1,282 +1,246 @@
-# Where AWS Bedrock Falls Short — Deep Dive (Slide-Ready)
+# Where AWS Bedrock Falls Short — Corrected Deep Dive
 
-> Use each section below as a separate slide or slide pair in your presentation.
-
----
-
-## Slide 1: Customization Limitations
-
-### What You CAN'T Control in AWS Bedrock Knowledge Bases
-
-| What You Want | AWS Bedrock Reality | Databricks Alternative |
-|---|---|---|
-| Custom retrieval logic | ❌ Fixed: embed → vector search → top-K | ✅ Any retrieval strategy (HyDE, reranking, multi-hop) |
-| Query rewriting | ❌ No pre-processing of user query | ✅ Custom query transformation pipeline |
-| Result re-ranking | ⚠️ Limited (only with Kendra reranker add-on) | ✅ Cross-encoder reranking, custom scoring |
-| Hybrid search (BM25 + vector) | ❌ Vector-only in most stores | ✅ Full hybrid with tunable weights |
-| Custom prompt template for RAG | ⚠️ Limited templating options | ✅ Complete prompt engineering control |
-| Multi-index queries | ❌ One KB at a time (or merge awkwardly) | ✅ Query multiple indexes, fuse results |
-| Chunk metadata filtering | ⚠️ Basic metadata filters only | ✅ Complex SQL-like filters on chunk metadata |
-| Custom embedding dimensions | ❌ Locked to model's output dim | ✅ Dimensionality reduction, custom projections |
-
-### Impact on Complex Document Q&A (20 PDFs with infographics)
-
-```
-User: "What's the ROI shown in the Q3 chart on page 47?"
-
-AWS Bedrock:
-┌─────────────────────────────────────────────┐
-│ 1. Chunks the PDF → misses chart context    │
-│ 2. Embeds text near chart → loses visual    │
-│ 3. Retrieves text chunks → no chart data    │
-│ 4. LLM hallucinates or says "not found"     │
-│                                              │
-│ Result: ❌ Cannot answer chart-based Qs     │
-└─────────────────────────────────────────────┘
-
-Databricks (with custom pipeline):
-┌─────────────────────────────────────────────┐
-│ 1. Custom parser extracts chart data        │
-│    (using vision model or chart-to-table)   │
-│ 2. Stores structured data alongside text    │
-│ 3. Custom retrieval: text + structured      │
-│ 4. LLM has actual chart values              │
-│                                              │
-│ Result: ✅ Accurate answer with numbers     │
-└─────────────────────────────────────────────┘
-```
-
-### Workarounds (All Have Tradeoffs)
-
-| Workaround | Complexity | Effectiveness |
-|---|---|---|
-| Pre-process PDFs before S3 upload (extract tables/charts externally) | High | Medium — loses context |
-| Use Custom Lambda chunking | Medium | Limited — still can't change retrieval |
-| Build custom RAG on Bedrock (skip KB, use raw APIs) | High | Good — but then why use Bedrock KB? |
-| Use AgentCore with tool-use for structured data | Medium | Partial — complex to set up |
+> **Note**: The previous version overstated several AWS limitations. This corrected version is based on verified documentation as of mid-2025. AWS has shipped capabilities that address many common criticisms.
 
 ---
 
-## Slide 2: Fine-tuning Gaps
+## Corrections: What I Got Wrong
 
-### What Fine-tuning Means for a KB Q&A System
-
-| Capability | Why It Matters | AWS Bedrock | Databricks |
-|---|---|---|---|
-| **Fine-tune the LLM** | Domain-specific language, internal jargon | ⚠️ Limited models only (Llama, Titan) | ✅ Any model (full fine-tune or LoRA) |
-| **Fine-tune embeddings** | Better retrieval for YOUR documents | ❌ Not supported | ✅ Train domain-specific embeddings |
-| **RLHF / DPO** | Align answers to your quality bar | ❌ Not available | ✅ Full RLHF/DPO pipeline |
-| **Instruction tuning** | Teach specific response format | ⚠️ Basic via Bedrock fine-tuning | ✅ Complete control |
-| **Continued pre-training** | Inject domain knowledge into model weights | ⚠️ Expensive, limited models | ✅ Via Mosaic AI training |
-
-### Why Embedding Fine-tuning Matters (For 20 Complex PDFs)
-
-```
-Scenario: Your PDFs use internal terminology
-- "EBITDA bridge" = specific internal report format
-- "T2 metrics" = internal performance framework
-- "Green Zone" = your company's compliance status
-
-Generic embeddings (AWS Bedrock):
-┌─────────────────────────────────────────────┐
-│ "EBITDA bridge" → embeds near financial     │
-│   generic content, not YOUR specific format │
-│                                              │
-│ Query: "Show me the EBITDA bridge for Q3"   │
-│ Retrieved: random financial paragraphs      │
-│ Quality: Poor 📉                            │
-└─────────────────────────────────────────────┘
-
-Fine-tuned embeddings (Databricks):
-┌─────────────────────────────────────────────┐
-│ "EBITDA bridge" → trained to be near YOUR   │
-│   specific bridge format in YOUR docs       │
-│                                              │
-│ Query: "Show me the EBITDA bridge for Q3"   │
-│ Retrieved: exact Q3 bridge section          │
-│ Quality: Excellent 📈                       │
-└─────────────────────────────────────────────┘
-```
-
-### AWS Bedrock Fine-tuning Constraints
-
-| Constraint | Detail |
+| Previous Claim | Reality (Fact-Checked) |
 |---|---|
-| Supported models | Only Llama, Titan, Cohere (NOT Claude!) |
-| Training data format | Must be JSONL, specific schema |
-| No embedding fine-tuning | Titan Embed V2 is frozen — take it or leave it |
-| No RLHF | Cannot learn from user feedback loops |
-| No online learning | Can't improve over time without full retrain |
-| Cost | $8-12/hr for fine-tuning instances |
-| No A/B testing of fine-tuned variants | Must deploy and manually compare |
+| ❌ "No built-in evaluation" | ✅ **Bedrock has RAG Evaluation (GA 2025)** — Faithfulness, Context Relevance, Context Coverage, Correctness, Completeness, Helpfulness, Logical Coherence. Supports custom metrics too. |
+| ❌ "No per-user access control" | ✅ **Bedrock KB supports ACL-aware filtering** — syncs ACLs from SharePoint, Google Drive, Confluence, Box. Also supports metadata-based multi-tenancy in a single KB. |
+| ❌ "Vector-only search, no hybrid" | ✅ **Hybrid search is supported** — for OpenSearch Serverless, Aurora PostgreSQL, and MongoDB Atlas vector stores (since April 2025). |
+| ❌ "No reranking" | ✅ **Reranking is built-in** — service-managed reranking model by default, plus you can use custom reranking models via the Rerank API. |
+| ❌ "Cannot handle infographics/charts" | ✅ **Multimodal parsing (GA Dec 2024)** — Bedrock Data Automation (BDA) and FM-based parsers extract figures, charts, tables, images. Nova Multimodal Embeddings for visual similarity search. |
+| ❌ "No custom chunking" | ✅ **Custom transformation Lambda** — full control over chunking logic via your own Lambda function. |
+| ❌ "Fixed RAG pipeline" | ⚠️ Partially true — but query decomposition, metadata filtering, reranking, hybrid search are all tunable knobs. |
 
 ---
 
-## Slide 3: Evaluation Weaknesses
+## Slide 1: Customization — Revised Assessment
 
-### What "Evaluation" Means for Production RAG
+### What AWS Bedrock Actually Offers (Tunable Knobs)
 
-| Evaluation Type | What It Tests | AWS Bedrock | Databricks |
+| Customization Area | Available in Bedrock KB | Limitation Remains? |
+|---|---|---|
+| Chunking strategy | ✅ Fixed, Semantic, Hierarchical, None, **Custom Lambda** | No — fully customizable |
+| Hybrid search (BM25 + vector) | ✅ Supported for OpenSearch, Aurora PG, MongoDB | No |
+| Reranking | ✅ Built-in service-managed + custom reranker API | No |
+| Query decomposition | ✅ Automatic multi-step query breakdown | No |
+| Metadata filtering at query time | ✅ Complex filter expressions supported | No |
+| Custom transformation (parsing) | ✅ Lambda-based custom transformation | No |
+| Multimodal parsing (charts/tables) | ✅ BDA + FM parsers extract visual content | No |
+| Custom prompt template | ⚠️ Some templating — less flexible than full code | **Partial limitation** |
+| Multi-hop retrieval / agentic RAG | ✅ Via AgentCore with tool use | No |
+| Custom scoring/retrieval algorithm | ❌ Cannot replace the core retrieval engine | **Real limitation** |
+| Bring your own embedding model | ❌ Must use Bedrock-supported embeddings | **Real limitation** |
+
+### What's ACTUALLY Limited
+
+The real limitations that remain:
+
+1. **Cannot bring arbitrary embedding models** — You're restricted to Titan Embed V2 and Cohere Embed. If you've trained a custom embedding model (e.g., fine-tuned E5 or BGE on your domain), you cannot use it with Bedrock KB.
+
+2. **Cannot replace the retrieval algorithm** — The core retrieve → rank pipeline is fixed. You can tune parameters (top-K, reranking, hybrid weights), but you can't inject a completely custom retrieval strategy (e.g., ColBERT, custom graph-based retrieval).
+
+3. **Limited prompt engineering in KB mode** — When using the managed RetrieveAndGenerate API, you have less control over the exact prompt template compared to building your own chain.
+
+4. **No custom post-processing of retrieved chunks** — You can't insert logic between "chunks retrieved" and "sent to LLM" (e.g., summarize retrieved chunks before sending to model).
+
+### Impact Assessment for 20 Complex PDFs
+
+| Limitation | Impact | Workaround |
+|---|---|---|
+| Can't use custom embeddings | 🟡 Medium — generic embeddings work for most cases, but domain-specific jargon retrieval suffers | None within Bedrock KB |
+| Fixed retrieval algorithm | 🟡 Medium — the built-in pipeline with hybrid + reranking is good for 80% of cases | Use AgentCore with custom tools for complex retrieval |
+| Limited prompt control | 🟢 Low — you can work around this by using Retrieve API + custom generation | Use Retrieve API only, build generation yourself |
+
+---
+
+## Slide 2: Fine-tuning — Revised Assessment
+
+### What Bedrock Actually Supports
+
+| Capability | AWS Bedrock | Notes |
+|---|---|---|
+| Fine-tune LLM | ✅ Supported for Llama, Titan, Cohere, Mistral | **Claude is NOT fine-tunable** |
+| Continued pre-training | ✅ Available for select models | Inject domain knowledge |
+| Custom model import | ✅ Import fine-tuned models from anywhere | Deploy your own model on Bedrock |
+| Distillation | ✅ Model distillation (large → small) | New capability |
+
+### What Bedrock Does NOT Support
+
+| Capability | Gap | Why It Matters |
+|---|---|---|
+| **Fine-tune embeddings** | ❌ Not supported | Cannot optimize retrieval for your domain vocabulary |
+| **RLHF / DPO** | ❌ Not available in Bedrock | Cannot align model to your quality preferences via human feedback |
+| **Fine-tune Claude** | ❌ Anthropic doesn't offer this via Bedrock | If Claude is your best model, you can't fine-tune it |
+| **Online learning** | ❌ No continuous improvement from user interactions | Model stays static until manual retrain |
+| **Fine-tune reranker** | ❌ Service-managed reranker is fixed | Cannot optimize ranking for your specific query patterns |
+
+### Realistic Impact for 20-PDF KB
+
+For a 20-PDF knowledge base, the fine-tuning gap matters ONLY IF:
+- Your documents use highly specialized terminology that confuses generic embeddings
+- You need the model to respond in a very specific format/style consistently
+- You want the system to improve over time from user feedback
+
+For **general business documents** (HR policies, technical guides, financial reports with standard terminology), fine-tuning is often unnecessary — the base models + good chunking + reranking handle it well.
+
+**Honest assessment**: Fine-tuning matters more for Databricks' use case when you have **thousands of documents with domain-specific language** and need the embedding space to be optimized. For 20 PDFs, it's rarely the bottleneck.
+
+---
+
+## Slide 3: Evaluation — Revised Assessment
+
+### AWS Bedrock Evaluation — What Actually Exists (GA 2025)
+
+Bedrock now has **purpose-built RAG evaluation** with these built-in metrics:
+
+| Metric | What It Measures | Type |
+|---|---|---|
+| **Context Relevance** | Are retrieved chunks relevant to the query? | Retrieval |
+| **Context Coverage** | Do retrieved chunks cover all ground truth info? | Retrieval |
+| **Correctness** | Is the answer factually correct? | Generation |
+| **Completeness** | Does the answer address all aspects? | Generation |
+| **Faithfulness** | Does the answer avoid hallucination vs context? | Generation |
+| **Helpfulness** | Is the answer useful overall? | Generation |
+| **Logical Coherence** | Is the answer internally consistent? | Generation |
+| **Custom Metrics** | Define your own evaluation criteria | Both |
+
+### Evaluation Comparison — Corrected
+
+| Capability | AWS Bedrock Evaluations | Databricks (MLflow + Agent Eval) |
+|---|---|---|
+| Built-in RAG metrics | ✅ 7 built-in + custom | ✅ Via MLflow + RAGAS |
+| LLM-as-a-judge | ✅ Built-in | ✅ Built-in |
+| Custom metrics | ✅ Define custom prompts | ✅ Custom Python evaluators |
+| Evaluate external RAG systems | ✅ Can evaluate non-Bedrock RAG | ✅ Any RAG system |
+| Console UI for evaluation | ✅ Bedrock console | ✅ MLflow UI |
+| Programmatic evaluation | ✅ API-based | ✅ API-based |
+| **A/B comparison of configs** | ⚠️ Run separate jobs, compare manually | ✅ MLflow experiment comparison (side-by-side) |
+| **CI/CD integration** | ⚠️ Possible but not built-in | ✅ Native MLflow CI/CD hooks |
+| **Regression testing** | ⚠️ Must build test suite externally | ✅ Native experiment tracking with baselines |
+| **Per-query cost tracking** | ❌ Aggregate CloudWatch only | ✅ Per-inference cost attribution |
+| **Feedback loop (user → retrain)** | ❌ No built-in mechanism | ✅ MLflow + reinforcement pipeline |
+
+### Remaining Evaluation Gaps (Honest)
+
+The real remaining gaps in AWS Bedrock evaluation:
+
+1. **No native A/B testing framework** — You can run two evaluation jobs with different configs, but there's no built-in "compare these two approaches side-by-side" UI like MLflow provides.
+
+2. **No CI/CD-native regression testing** — You can't easily say "run this eval on every PR and block merge if faithfulness drops below 0.8." Databricks + MLflow makes this natural.
+
+3. **No feedback loop** — There's no built-in way to capture "user said this answer was wrong" → feed into improvement pipeline. You'd build this yourself.
+
+4. **No per-query cost tracking** — CloudWatch gives you aggregate costs, not "this specific query cost $0.003 because it retrieved 5 chunks and used 2000 tokens."
+
+These are **workflow gaps**, not capability gaps. Bedrock can measure quality; it just doesn't have the MLOps loop around it that Databricks/MLflow provides.
+
+---
+
+## Slide 4: Complex Document Handling — Revised
+
+### AWS Bedrock Multimodal Parsing (GA December 2024)
+
+**I was wrong** — Bedrock KB now handles complex documents significantly better than I stated:
+
+| Content Type | AWS Bedrock (Current) | Method |
+|---|---|---|
+| Plain text | ✅ Works well | Standard parsing |
+| Tables | ✅ Extracted and structured | BDA parser / FM parser |
+| Charts/Graphs | ✅ Extracted as images + described | BDA + FM-based description |
+| Infographics | ✅ Parsed via multimodal model | FM parser generates text descriptions |
+| Scanned PDFs | ✅ OCR via Textract integration | Automatic |
+| Images within PDFs | ✅ Stored and retrievable | Nova Multimodal Embeddings |
+| Multi-column layouts | ⚠️ Improved but imperfect | BDA handles most cases |
+| Complex nested tables | ⚠️ May lose some relationships | FM parser helps |
+
+### Two Multimodal Approaches in Bedrock KB
+
+```
+Approach 1: Bedrock Data Automation (BDA)
+┌─────────────────────────────────────────────────┐
+│ • Converts charts/images → text descriptions    │
+│ • Extracts tables → structured text             │
+│ • Processes audio, video, images, PDFs          │
+│ • Stored as searchable text chunks              │
+│ • Works with standard text embeddings           │
+└─────────────────────────────────────────────────┘
+
+Approach 2: Nova Multimodal Embeddings
+┌─────────────────────────────────────────────────┐
+│ • Embeds images directly (visual similarity)    │
+│ • Query with an image → find similar images     │
+│ • Charts are searchable by visual content       │
+│ • No text conversion needed                     │
+└─────────────────────────────────────────────────┘
+```
+
+### Remaining Gaps for Complex Documents
+
+| Scenario | AWS Bedrock | Databricks | Winner |
 |---|---|---|---|
-| **Retrieval quality** | Are the right chunks retrieved? | ❌ No built-in | ✅ MLflow + custom metrics |
-| **Answer faithfulness** | Is the answer grounded in retrieved context? | ❌ No measurement | ✅ Automated faithfulness scoring |
-| **Answer relevance** | Does it actually answer the question? | ⚠️ Basic (Bedrock Eval Jobs) | ✅ Custom relevance evaluators |
-| **Regression testing** | Did the new chunking strategy break anything? | ❌ No test suites | ✅ MLflow experiment comparison |
-| **A/B testing** | Which prompt/model/strategy is better? | ❌ Must build externally | ✅ Built into Agent Evaluation |
-| **Human feedback loop** | Learn from user thumbs up/down | ❌ No built-in mechanism | ✅ Integrated with MLflow |
-| **Cost tracking per query** | How much does each answer cost? | ⚠️ Aggregate only (CloudWatch) | ✅ Per-query cost attribution |
-
-### The "Ship and Pray" Problem
-
-```
-AWS Bedrock workflow:
-┌──────────────────────────────────────────────────────┐
-│                                                       │
-│  Build KB → Deploy → Users complain → ??? → Fix     │
-│                                                       │
-│  No systematic way to:                               │
-│  • Measure answer quality before deploy              │
-│  • Compare chunking strategies quantitatively        │
-│  • Detect quality degradation over time              │
-│  • Know WHICH documents cause bad answers            │
-│                                                       │
-└──────────────────────────────────────────────────────┘
-
-Databricks workflow:
-┌──────────────────────────────────────────────────────┐
-│                                                       │
-│  Build → Evaluate (automated) → Compare → Deploy    │
-│     ↑                                    │           │
-│     └──── Monitor + Feedback ←───────────┘           │
-│                                                       │
-│  Can measure:                                        │
-│  • Retrieval precision/recall per question           │
-│  • Faithfulness score per answer                     │
-│  • Which docs/chunks perform worst                   │
-│  • A/B test: "Did new chunking improve accuracy?"   │
-│                                                       │
-└──────────────────────────────────────────────────────┘
-```
-
-### Databricks Evaluation Example (MLflow)
-
-```python
-import mlflow
-from databricks.agents import evaluate
-
-# Define evaluation dataset
-eval_data = [
-    {"question": "What's the parental leave policy?",
-     "expected_answer": "16 weeks paid...",
-     "expected_source": "hr-policy-2024.pdf"},
-    {"question": "What's the Q3 EBITDA?",
-     "expected_answer": "$4.2M...",
-     "expected_source": "q3-financials.pdf"},
-]
-
-# Run evaluation — measures retrieval + answer quality automatically
-results = evaluate(
-    model=rag_chain,
-    data=eval_data,
-    metrics=["faithfulness", "relevance", "retrieval_precision"],
-)
-
-# Compare two approaches
-with mlflow.start_run(run_name="semantic-chunking"):
-    results_v1 = evaluate(model=rag_v1, data=eval_data)
-
-with mlflow.start_run(run_name="hierarchical-chunking"):
-    results_v2 = evaluate(model=rag_v2, data=eval_data)
-
-# MLflow UI shows: which approach wins per metric
-```
-
-### What This Means for Your 20 PDFs
-
-With complex documents (hundreds of pages, infographics), you NEED evaluation to know:
-- Is the chunking catching the right sections?
-- Are chart-heavy pages being handled correctly?
-- Does the model hallucinate when context is ambiguous?
-- Which of the 20 PDFs causes the most wrong answers?
-
-**AWS Bedrock cannot answer any of these questions systematically.**
+| "What number is in the Q3 chart?" | ✅ BDA extracts chart values | ✅ Custom vision pipeline | **Tie** (both can do it) |
+| "Compare the trend in charts A vs B" | ⚠️ Depends on BDA quality | ✅ Custom multi-modal reasoning | Databricks (more control) |
+| Highly custom document format | ⚠️ BDA is generic | ✅ Train custom parser | Databricks |
+| Standard business PDFs (tables + text) | ✅ Works well out of the box | ✅ Works with setup effort | **AWS** (faster) |
 
 ---
 
-## Slide 4: Complex Document Handling (Infographics & Charts)
+## Slide 5: Access Control — Revised (Bedrock ACL vs Unity Catalog)
 
-### The 20-PDF Scenario: What Happens with Complex Content
+### Bedrock KB Access Control — What Actually Exists
 
-| Content Type | AWS Bedrock | Databricks |
+AWS Bedrock KB now supports **ACL-aware filtering**:
+
+| Feature | AWS Bedrock KB (Current) | Unity Catalog |
 |---|---|---|
-| Plain text paragraphs | ✅ Works well | ✅ Works well |
-| Tables | ⚠️ Often loses structure | ✅ Custom table parser |
-| Charts/Graphs | ❌ Treats as image → ignores | ✅ Vision model extraction |
-| Infographics | ❌ Cannot extract meaning | ✅ Multi-modal pipeline |
-| Scanned PDFs (OCR needed) | ⚠️ Basic Textract integration | ✅ Custom OCR + post-processing |
-| Multi-column layouts | ⚠️ Sometimes jumbles columns | ✅ Layout-aware parsing |
-| Headers/Footers/Page numbers | ⚠️ Included in chunks (noise) | ✅ Custom filtering |
-| Cross-references ("see page 47") | ❌ No context linking | ✅ Custom reference resolution |
+| Document-level ACL | ✅ Syncs ACLs from connectors (SharePoint, Google Drive, Confluence, Box) | ✅ Row-level security |
+| Metadata-based multi-tenancy | ✅ Single KB with tenant filters | ✅ Column/row masking |
+| User/group-based filtering | ✅ Pass user context → filter at query time | ✅ Native identity integration |
+| Pre-retrieval filtering | ✅ ACLs applied before vector search | ✅ Query predicates |
+| Custom ACL via metadata | ✅ Tag docs with allowed users/groups | ✅ Tags + policies |
+| Cross-connector ACL | ✅ Per-connector ACL sync | ✅ Universal catalog |
 
-### Example: 200-Page PDF with Complex Infographics
+### Where Unity Catalog Still Wins
 
-```
-Your PDF: "Annual Strategy Report 2024"
-- 200 pages
-- 30 charts/graphs
-- 15 complex tables
-- 20 infographics
-- Mixed: text + visual + structured data
+| Capability | Bedrock KB ACL | Unity Catalog | Notes |
+|---|---|---|---|
+| **Column-level masking** | ❌ All-or-nothing per document | ✅ Mask specific fields | UC can hide salary in otherwise-accessible HR doc |
+| **Data lineage (chunk-level)** | ⚠️ Source attribution only | ✅ Full lineage graph | UC traces data from source → transform → embedding → query |
+| **Centralized governance across ALL data** | ❌ Only KB scope | ✅ Governs tables, models, notebooks, ML | UC is the single governance layer |
+| **Dynamic policies** | ⚠️ Static ACL sync | ✅ Attribute-based access control (ABAC) | UC policies can reference real-time attributes |
+| **Audit across full ML lifecycle** | ⚠️ CloudTrail (API-level) | ✅ Query-level audit with data accessed | UC logs which data fed which answer |
 
-AWS Bedrock approach:
-┌──────────────────────────────────────────┐
-│ Step 1: Upload to S3                     │
-│ Step 2: Bedrock KB ingests               │
-│   - Extracts text (ignores images)       │
-│   - Chunks at 300 tokens (or semantic)   │
-│   - Many charts = empty/useless chunks   │
-│ Step 3: User asks about chart data       │
-│   - Retrieves text near chart            │
-│   - No actual chart values available     │
-│   - Answer: "I don't have that info"     │
-│                                           │
-│ Coverage: ~60% of document content        │
-└──────────────────────────────────────────┘
+### Honest Assessment
 
-Databricks approach:
-┌──────────────────────────────────────────┐
-│ Step 1: Upload to Unity Catalog Volume   │
-│ Step 2: Custom pipeline:                 │
-│   a. Layout detection (Unstructured.io)  │
-│   b. Table extraction → structured data  │
-│   c. Chart extraction → values via       │
-│      vision model (GPT-4V/Claude Vision) │
-│   d. Infographic → text description      │
-│   e. Context-aware chunking              │
-│ Step 3: User asks about chart data       │
-│   - Retrieves structured chart data      │
-│   - Answer includes actual numbers       │
-│                                           │
-│ Coverage: ~95% of document content        │
-└──────────────────────────────────────────┘
-```
+For the "20 PDFs, multi-team access" scenario:
+- **If your connectors support ACL** (SharePoint, Confluence, Google Drive): Bedrock handles per-user filtering natively. No need for multiple KBs.
+- **If you need column-level masking** within a document: Unity Catalog wins.
+- **If you need centralized governance across data + ML + analytics**: Unity Catalog wins (it's an org-wide governance layer, not just for KB).
 
 ---
 
-## Summary: AWS Bedrock Limitation Severity
+## Revised Summary: Honest Comparison
 
-| Limitation | Severity for 20 Complex PDFs | Can You Work Around It? |
+| Limitation | Severity (Corrected) | Was I Fair Before? |
 |---|---|---|
-| **No custom retrieval logic** | 🔴 High — limits answer quality | Partially (custom app, skip KB) |
-| **No embedding fine-tuning** | 🟡 Medium — hurts domain-specific queries | No workaround |
-| **No systematic evaluation** | 🔴 High — can't measure or improve quality | Build externally (expensive) |
-| **Poor infographic handling** | 🔴 High — 40% of content may be missed | Pre-process externally (complex) |
-| **No per-user access control** | 🟡 Medium — depends on team structure | Multiple KBs (maintenance burden) |
-| **No RLHF** | 🟡 Medium — can't learn from feedback | No workaround |
-| **No A/B testing** | 🟡 Medium — can't compare approaches | Build custom metrics externally |
+| Custom embedding models | 🟡 Medium | Yes — this is a real gap |
+| Fine-tuning (no RLHF, no Claude) | 🟡 Medium | Yes, but less relevant for 20 PDFs |
+| Evaluation (no CI/CD loop, no A/B) | 🟡 Medium (workflow gap, not capability gap) | **No — I overstated this. Bedrock has solid eval metrics now.** |
+| Complex doc handling | 🟢 Low (BDA + multimodal parsing exist) | **No — I was wrong. Bedrock handles charts/tables/images.** |
+| Per-user access control | 🟢 Low (ACL-aware filtering exists) | **No — I was wrong. Bedrock has ACL sync.** |
+| Customization (retrieval algorithm) | 🟡 Medium | Partially — hybrid + reranking exist, but core algo is fixed |
+| Feedback loop / online learning | 🟡 Medium | Yes — this remains a gap |
+| Multi-cloud | 🔴 Hard constraint | Yes — AWS only, no workaround |
 
-### Bottom Line
+### Bottom Line (Corrected)
 
-> AWS Bedrock is excellent for **"good enough, fast"** — text-heavy PDFs where 80% accuracy is acceptable and you need it live in minutes.
+> **AWS Bedrock is stronger than I initially presented.** It has evaluation, multimodal parsing, hybrid search, reranking, ACL filtering, and custom chunking. The "managed RAG" is not a toy — it's a production-capable system.
 >
-> Databricks is necessary when you need **"production-grade accuracy"** — complex documents, measurable quality, continuous improvement, and fine-grained access control.
+> **Databricks still wins on**: custom embedding models, RLHF, CI/CD-native evaluation workflows, centralized org-wide data governance (Unity Catalog scope), multi-cloud, and situations where you need the retrieval algorithm itself to be different.
+>
+> **For 20 complex PDFs**: AWS Bedrock (with BDA multimodal parsing + ACL filtering + built-in evaluation) is likely **sufficient** and will be production-ready in hours vs. days for Databricks. Databricks is justified only if you need custom embeddings, RLHF, or your cluster already exists and you want one platform for everything.
